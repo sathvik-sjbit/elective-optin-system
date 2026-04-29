@@ -1,0 +1,446 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard – ElectiveHub{% endblock %}
+
+{% block content %}
+<div class="hero-gradient text-white py-4 px-4 mb-4">
+    <div class="container-fluid">
+        <div class="row align-items-center">
+            <div class="col">
+                <h2 class="fw-bold mb-1"><i class="bi bi-speedometer2 me-2"></i>Admin Dashboard</h2>
+                <p class="mb-0 opacity-75">Manage allocations, view statistics, override assignments</p>
+            </div>
+            <div class="col-auto d-flex gap-2 flex-wrap">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="run_allocation">
+                    <button type="submit" class="btn btn-warning fw-semibold"
+                            onclick="return confirm('Run FCFS allocation now? This will process all pending preferences.')">
+                        <i class="bi bi-lightning-charge me-2"></i>Run Allocation
+                    </button>
+                </form>
+                <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#addCourseModal">
+                    <i class="bi bi-plus-circle me-2"></i>Add Course
+                </button>
+                <a href="{% url 'csv_export' %}" class="btn btn-light fw-semibold">
+                    <i class="bi bi-download me-2"></i>Export CSV
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid px-4">
+    <!-- Stats Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-4">
+                    <div class="display-5 fw-bold text-primary">{{ total_students }}</div>
+                    <div class="text-muted mt-1"><i class="bi bi-people me-1"></i>Students</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-4">
+                    <div class="display-5 fw-bold text-success">{{ allocated_count }}</div>
+                    <div class="text-muted mt-1"><i class="bi bi-check-circle me-1"></i>Allocated</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-4">
+                    <div class="display-5 fw-bold text-warning">{{ waitlisted_count }}</div>
+                    <div class="text-muted mt-1"><i class="bi bi-clock me-1"></i>Waitlisted</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-4">
+                    <div class="display-5 fw-bold text-secondary">{{ pending_count }}</div>
+                    <div class="text-muted mt-1"><i class="bi bi-hourglass me-1"></i>Pending</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== PENDING PREFERENCES ===== -->
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-hourglass-split me-2"></i>Pending Student Preferences
+                <span class="badge bg-dark ms-2">{{ pending_count }}</span>
+            </h5>
+            <small class="text-dark opacity-75">Accept or reject each preference individually, or use "Run Allocation" for automatic FCFS processing</small>
+        </div>
+        <div class="table-responsive" style="max-height:420px;overflow-y:auto">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-dark sticky-top">
+                    <tr>
+                        <th>#</th>
+                        <th>Student</th>
+                        <th>Roll No.</th>
+                        <th>Branch</th>
+                        <th>Course Preference</th>
+                        <th>Rank</th>
+                        <th>Submitted At</th>
+                        <th style="min-width:160px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pref in pending_preferences %}
+                    <tr>
+                        <td class="text-muted small">{{ forloop.counter }}</td>
+                        <td>
+                            <div class="fw-semibold small">{{ pref.student.user.get_full_name }}</div>
+                            <div class="text-muted" style="font-size:0.72rem">{{ pref.student.user.email }}</div>
+                        </td>
+                        <td class="small fw-semibold">{{ pref.student.roll_number }}</td>
+                        <td><span class="badge bg-secondary small">{{ pref.student.branch }}</span></td>
+                        <td>
+                            <div class="fw-semibold small">{{ pref.course.title|truncatechars:35 }}</div>
+                            <div class="text-muted" style="font-size:0.72rem">
+                                {{ pref.course.code }} &bull; {{ pref.course.department.code }}
+                                &bull; <span class="{% if pref.course.available_seats == 0 %}text-danger{% elif pref.course.available_seats < 5 %}text-warning{% else %}text-success{% endif %}">
+                                    {{ pref.course.available_seats }} seats left
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">Choice {{ pref.rank }}</span>
+                        </td>
+                        <td class="small text-muted">{{ pref.timestamp|date:"d M Y, H:i" }}</td>
+                        <td>
+                            <div class="d-flex gap-1 flex-wrap">
+                                <!-- Accept -->
+                                <form method="post" action="{% url 'accept_preference' pref.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-success btn-sm fw-semibold"
+                                            {% if pref.course.available_seats == 0 %}disabled title="No seats available"{% endif %}
+                                            onclick="return confirm('Allocate {{ pref.student.user.get_full_name }} to {{ pref.course.title }}?')">
+                                        <i class="bi bi-check-lg me-1"></i>Accept
+                                    </button>
+                                </form>
+                                <!-- Reject -->
+                                <form method="post" action="{% url 'reject_preference' pref.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-outline-danger btn-sm"
+                                            onclick="return confirm('Reject this preference?')">
+                                        <i class="bi bi-x-lg me-1"></i>Reject
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>No pending preferences — all caught up!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Chart -->
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Course Preference Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="preferenceChart" height="300"></canvas>
+                </div>
+            </div>
+
+            <!-- Course Seats Table -->
+            <div class="card mt-4">
+                <div class="card-header bg-light d-flex justify-content-between">
+                    <h5 class="mb-0"><i class="bi bi-table me-2"></i>Course Seat Status</h5>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'csv_export' %}?category=open" class="btn btn-sm btn-outline-secondary">Open Electives CSV</a>
+                        <a href="{% url 'csv_export' %}?category=professional" class="btn btn-sm btn-outline-secondary">Professional CSV</a>
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height:350px;overflow-y:auto">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-dark sticky-top">
+                            <tr>
+                                <th>Course</th>
+                                <th>Dept</th>
+                                <th>Category</th>
+                                <th>Available</th>
+                                <th>Total</th>
+                                <th>Fill %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for course in courses %}
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold small">{{ course.title|truncatechars:30 }}</div>
+                                    <div class="text-muted" style="font-size:0.72rem">{{ course.code }}</div>
+                                </td>
+                                <td class="small">{{ course.department.code }}</td>
+                                <td>
+                                    <span class="badge badge-{{ course.category }} small">{{ course.get_category_display }}</span>
+                                </td>
+                                <td>
+                                    <span class="{% if course.is_full %}text-danger fw-bold{% elif course.available_seats < 5 %}text-warning fw-bold{% else %}text-success{% endif %}">
+                                        {{ course.available_seats }}
+                                    </span>
+                                </td>
+                                <td>{{ course.total_seats }}</td>
+                                <td>
+                                    {% widthratio course.seats_taken course.total_seats 100 as fill_pct %}
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div style="width:60px">
+                                            <div class="seat-bar">
+                                                <div class="seat-bar-fill {% if fill_pct > 90 %}bg-danger{% elif fill_pct > 70 %}bg-warning{% else %}bg-success{% endif %}"
+                                                     style="width:{{ fill_pct }}%"></div>
+                                            </div>
+                                        </div>
+                                        <small>{{ fill_pct }}%</small>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="col-lg-5">
+            <!-- Admin Override Form -->
+            <div class="card mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-fill me-2"></i>Admin Override Allocation</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Manually allocate a student to a course, bypassing normal FCFS rules.</p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="admin_override">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Student</label>
+                            <select name="student" class="form-select form-select-sm">
+                                <option value="">-- Select Student --</option>
+                                {% for s in all_students %}
+                                <option value="{{ s.id }}">
+                                    {{ s.roll_number }} – {{ s.user.get_full_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Course</label>
+                            <select name="course" class="form-select form-select-sm">
+                                <option value="">-- Select Course --</option>
+                                {% for course in courses %}
+                                <option value="{{ course.id }}">{{ course.code }} – {{ course.title|truncatechars:40 }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Notes</label>
+                            <textarea name="notes" class="form-control form-control-sm" rows="2"
+                                      placeholder="Reason for override..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-danger btn-sm w-100">
+                            <i class="bi bi-lightning me-2"></i>Apply Override
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Recent Allocations -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Allocations</h5>
+                </div>
+                <div style="max-height:400px;overflow-y:auto">
+                    <div class="list-group list-group-flush">
+                        {% for alloc in recent_allocations %}
+                        <div class="list-group-item px-3 py-2">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="fw-semibold small">{{ alloc.student.user.get_full_name }}</div>
+                                    <div class="text-muted" style="font-size:0.72rem">
+                                        {{ alloc.student.roll_number }} → {{ alloc.course.code }}
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    {% if alloc.is_admin_override %}
+                                    <span class="badge bg-warning text-dark small">Override</span>
+                                    {% else %}
+                                    <span class="badge bg-success small">Auto</span>
+                                    {% endif %}
+                                    <form method="post" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="cancel_allocation">
+                                        <input type="hidden" name="allocation_id" value="{{ alloc.id }}">
+                                        <button type="submit" class="btn btn-link btn-sm text-danger p-0 ms-1"
+                                                onclick="return confirm('Cancel this allocation? Waitlist will be promoted.')">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-4 text-muted">No allocations yet</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== ADD COURSE MODAL ===== -->
+<div class="modal fade" id="addCourseModal" tabindex="-1" aria-labelledby="addCourseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="addCourseModalLabel">
+                    <i class="bi bi-plus-circle me-2"></i>Add New Course
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_course">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold small">Course Title *</label>
+                            <input type="text" name="title" class="form-control form-control-sm" required placeholder="e.g. Machine Learning Fundamentals">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Course Code *</label>
+                            <input type="text" name="code" class="form-control form-control-sm" required placeholder="e.g. CS501">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Category *</label>
+                            <select name="category" class="form-select form-select-sm" required>
+                                <option value="open">Open Elective</option>
+                                <option value="professional">Professional Elective</option>
+                                <option value="ability">Ability Enhancement</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Department *</label>
+                            <select name="department" class="form-select form-select-sm" required>
+                                {% for dept in departments %}
+                                <option value="{{ dept.id }}">{{ dept.code }} – {{ dept.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Semester Offered *</label>
+                            <input type="number" name="semester_offered" class="form-control form-control-sm" value="5" min="1" max="8" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small">Total Seats *</label>
+                            <input type="number" name="total_seats" class="form-control form-control-sm" value="30" min="1" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small">Available Seats *</label>
+                            <input type="number" name="available_seats" class="form-control form-control-sm" value="30" min="0" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small">Branch Quota (JSON)</label>
+                            <input type="text" name="branch_quota" class="form-control form-control-sm" placeholder='{"CSE":10,"ECE":5}'>
+                            <small class="text-muted">Leave blank for no branch limits</small>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-center">
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="isActive" checked>
+                                <label class="form-check-label fw-semibold small" for="isActive">Active</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Salient Features *</label>
+                            <textarea name="salient_features" class="form-control form-control-sm" rows="3" required
+                                      placeholder="Key topics, highlights, and learning outcomes..."></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Job Perspective *</label>
+                            <textarea name="job_perspective" class="form-control form-control-sm" rows="3" required
+                                      placeholder="Career opportunities and industry relevance..."></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Prerequisites</label>
+                            <textarea name="prerequisites" class="form-control form-control-sm" rows="2"
+                                      placeholder="Required prior knowledge or courses (optional)..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success fw-semibold">
+                        <i class="bi bi-plus-circle me-2"></i>Add Course
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Chart.js: Preference distribution visualization
+const chartData = {{ chart_data|safe }};
+
+const ctx = document.getElementById('preferenceChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: chartData.map(d => d.title),
+        datasets: [
+            {
+                label: 'Total Preferences',
+                data: chartData.map(d => d.total),
+                backgroundColor: 'rgba(37, 99, 235, 0.6)',
+                borderColor: 'rgba(37, 99, 235, 1)',
+                borderWidth: 1,
+            },
+            {
+                label: 'Allocated',
+                data: chartData.map(d => d.allocated),
+                backgroundColor: 'rgba(22, 163, 74, 0.6)',
+                borderColor: 'rgba(22, 163, 74, 1)',
+                borderWidth: 1,
+            },
+            {
+                label: 'Waitlisted',
+                data: chartData.map(d => d.waitlisted),
+                backgroundColor: 'rgba(217, 119, 6, 0.6)',
+                borderColor: 'rgba(217, 119, 6, 1)',
+                borderWidth: 1,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { position: 'top' },
+            tooltip: { mode: 'index', intersect: false }
+        },
+        scales: {
+            x: { ticks: { maxRotation: 45, font: { size: 10 } } },
+            y: { beginAtZero: true, ticks: { stepSize: 1 } }
+        }
+    }
+});
+</script>
+{% endblock %}

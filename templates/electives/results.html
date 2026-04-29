@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+{% block title %}My Results – ElectiveHub{% endblock %}
+
+{% block content %}
+<div class="hero-gradient text-white py-4 px-4 mb-4">
+    <div class="container-fluid">
+        <h2 class="fw-bold mb-1"><i class="bi bi-trophy me-2"></i>My Allocation Results</h2>
+        <p class="mb-0 opacity-75">{{ student.roll_number }} &bull; {{ student.get_branch_display }}</p>
+    </div>
+</div>
+
+<div class="container-fluid px-4">
+    <div class="row g-4">
+        <!-- Allocation Status -->
+        <div class="col-lg-5">
+            {% if allocation %}
+            <div class="card border-success" style="border-width:2px">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>Allocation Confirmed!</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center py-3">
+                        <div class="bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                             style="width:80px;height:80px">
+                            <i class="bi bi-mortarboard text-success" style="font-size:2.5rem"></i>
+                        </div>
+                        <h4 class="fw-bold text-success mb-1">Congratulations!</h4>
+                        <p class="text-muted mb-0">You have been allocated to:</p>
+                    </div>
+                    <div class="card bg-light mt-3">
+                        <div class="card-body text-center">
+                            <h5 class="fw-bold mb-1">{{ allocation.course.title }}</h5>
+                            <p class="text-muted mb-2">{{ allocation.course.code }} &bull; {{ allocation.course.department.name }}</p>
+                            <span class="badge badge-{{ allocation.course.category }} px-3 py-2 rounded-pill">
+                                {{ allocation.course.get_category_display }}
+                            </span>
+                        </div>
+                    </div>
+                    {% if allocation.is_admin_override %}
+                    <div class="alert alert-info mt-3 py-2 small mb-0">
+                        <i class="bi bi-shield-check me-2"></i>This was an admin override allocation.
+                    </div>
+                    {% endif %}
+                    <div class="text-center mt-3">
+                        <small class="text-muted">Allocated on {{ allocation.allocated_at|date:"d M Y, H:i" }}</small>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    {% if preferences %}
+                        <i class="bi bi-hourglass-split text-warning" style="font-size:3rem"></i>
+                        <h5 class="mt-3 text-warning">Allocation Pending</h5>
+                        <p class="text-muted">Your preferences have been recorded. Allocation results will be published after the deadline.</p>
+                    {% else %}
+                        <i class="bi bi-inbox text-muted" style="font-size:3rem"></i>
+                        <h5 class="mt-3 text-muted">No Preferences Yet</h5>
+                        <p class="text-muted">You haven't submitted any preferences.</p>
+                        <a href="{% url 'submit_preference' %}" class="btn btn-primary">Submit Now</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Student Stats Card -->
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-person-badge me-2 text-primary"></i>Your Profile</h6>
+                    <table class="table table-sm mb-0">
+                        <tr><td class="text-muted">Name</td><td class="fw-semibold">{{ student.user.get_full_name }}</td></tr>
+                        <tr><td class="text-muted">Roll No.</td><td class="fw-semibold">{{ student.roll_number }}</td></tr>
+                        <tr><td class="text-muted">Branch</td><td class="fw-semibold">{{ student.get_branch_display }}</td></tr>
+                        <tr><td class="text-muted">Semester</td><td class="fw-semibold">{{ student.current_semester }}</td></tr>
+                        <tr><td class="text-muted">CGPA</td><td class="fw-semibold">{{ student.cgpa }}</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preferences Table -->
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Preference Tracker</h5>
+                    <span class="badge bg-secondary">{{ preferences|length }} submitted</span>
+                </div>
+                {% if preferences %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Course</th>
+                                <th>Department</th>
+                                <th>Seats</th>
+                                <th>Status</th>
+                                <th>Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pref in preferences %}
+                            <tr class="{% if pref.status == 'allocated' %}table-success{% elif pref.status == 'waitlisted' %}table-warning{% elif pref.status == 'rejected' %}table-danger{% endif %}">
+                                <td>
+                                    <span class="badge bg-primary rounded-circle">{{ pref.rank }}</span>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold small">{{ pref.course.title }}</div>
+                                    <div class="text-muted" style="font-size:0.75rem">{{ pref.course.code }}</div>
+                                </td>
+                                <td class="small">{{ pref.course.department.name }}</td>
+                                <td>
+                                    <span id="result-seat-{{ pref.course.id }}" data-course-id="{{ pref.course.id }}" class="small">
+                                        {{ pref.course.available_seats }}/{{ pref.course.total_seats }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge rounded-pill
+                                        {% if pref.status == 'allocated' %}bg-success
+                                        {% elif pref.status == 'waitlisted' %}bg-warning text-dark
+                                        {% elif pref.status == 'rejected' %}bg-danger
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ pref.get_status_display }}
+                                        {% if pref.waitlist_position %}#{{ pref.waitlist_position }}{% endif %}
+                                    </span>
+                                </td>
+                                <td class="small text-muted">{{ pref.timestamp|date:"d M, H:i" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="card-body text-center py-4 text-muted">
+                    No preferences submitted yet.
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Legend -->
+            <div class="card mt-3">
+                <div class="card-body py-2">
+                    <div class="row g-2 text-center">
+                        <div class="col-3">
+                            <span class="badge bg-success px-2">Allocated</span>
+                            <div class="small text-muted mt-1">Seat confirmed</div>
+                        </div>
+                        <div class="col-3">
+                            <span class="badge bg-warning text-dark px-2">Waitlisted</span>
+                            <div class="small text-muted mt-1">In queue</div>
+                        </div>
+                        <div class="col-3">
+                            <span class="badge bg-secondary px-2">Pending</span>
+                            <div class="small text-muted mt-1">Awaiting run</div>
+                        </div>
+                        <div class="col-3">
+                            <span class="badge bg-danger px-2">Rejected</span>
+                            <div class="small text-muted mt-1">Ineligible</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Refresh seat counts every 10 seconds on results page
+    setInterval(function() {
+        document.querySelectorAll('[data-course-id]').forEach(async el => {
+            const id = el.dataset.courseId;
+            try {
+                const r = await fetch(`/api/seats/${id}/`);
+                const d = await r.json();
+                el.textContent = `${d.available_seats}/${d.total_seats}`;
+            } catch(e) {}
+        });
+    }, 10000);
+</script>
+{% endblock %}

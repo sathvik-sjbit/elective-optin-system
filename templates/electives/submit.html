@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+{% block title %}Submit Preferences – ElectiveHub{% endblock %}
+
+{% block content %}
+<div class="hero-gradient text-white py-4 px-4 mb-4">
+    <div class="container-fluid">
+        <h2 class="fw-bold mb-1"><i class="bi bi-check2-square me-2"></i>Submit Your Preferences</h2>
+        <p class="mb-0 opacity-75">Rank your choices — first-cum-first-serve allocation applies</p>
+    </div>
+</div>
+
+<div class="container-fluid px-4">
+    <div class="row g-4">
+        <!-- Submission Form -->
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-list-ol me-2"></i>Select Courses (Ranked)</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Student Info -->
+                    <div class="alert alert-info py-2 mb-4">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="fw-bold">{{ student.roll_number }}</div>
+                                <small class="text-muted">Roll No.</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold">{{ student.get_branch_display }}</div>
+                                <small class="text-muted">Branch</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold">{{ student.cgpa }}</div>
+                                <small class="text-muted">CGPA</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in form.non_field_errors %}
+                        <div><i class="bi bi-exclamation-circle me-2"></i>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <form method="post" id="preferenceForm">
+                        {% csrf_token %}
+
+                        <!-- Choice 1 -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <span class="badge bg-primary rounded-circle me-2">1</span>
+                                First Choice <span class="text-danger">*</span>
+                            </label>
+                            <select name="choice1" id="choice1" class="form-select {% if form.choice1.errors %}is-invalid{% endif %}"
+                                    onchange="updateSeatInfo('choice1', this.value)">
+                                <option value="">-- Select your top choice --</option>
+                                {% for val, label in form.fields.choice1.choices %}
+                                {% if val %}
+                                <option value="{{ val }}" {% if form.choice1.value == val|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                            {% for e in form.choice1.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+                            <div id="seat-info-choice1" class="mt-1 small"></div>
+                        </div>
+
+                        <!-- Choice 2 -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <span class="badge bg-secondary rounded-circle me-2">2</span>
+                                Second Choice <span class="text-muted">(optional)</span>
+                            </label>
+                            <select name="choice2" id="choice2" class="form-select {% if form.choice2.errors %}is-invalid{% endif %}"
+                                    onchange="updateSeatInfo('choice2', this.value)">
+                                <option value="">-- Select second choice --</option>
+                                {% for val, label in form.fields.choice2.choices %}
+                                {% if val %}
+                                <option value="{{ val }}" {% if form.choice2.value == val|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                            {% for e in form.choice2.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+                            <div id="seat-info-choice2" class="mt-1 small"></div>
+                        </div>
+
+                        <!-- Choice 3 -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <span class="badge bg-secondary rounded-circle me-2">3</span>
+                                Third Choice <span class="text-muted">(optional)</span>
+                            </label>
+                            <select name="choice3" id="choice3" class="form-select {% if form.choice3.errors %}is-invalid{% endif %}"
+                                    onchange="updateSeatInfo('choice3', this.value)">
+                                <option value="">-- Select third choice --</option>
+                                {% for val, label in form.fields.choice3.choices %}
+                                {% if val %}
+                                <option value="{{ val }}" {% if form.choice3.value == val|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                            {% for e in form.choice3.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+                            <div id="seat-info-choice3" class="mt-1 small"></div>
+                        </div>
+
+                        <div class="alert alert-warning py-2">
+                            <i class="bi bi-clock me-2"></i>
+                            <strong>FCFS Policy:</strong> Your submission timestamp determines priority.
+                            Earlier submissions get better chances of allocation.
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 fw-semibold">
+                            <i class="bi bi-send me-2"></i>Submit Preferences
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Existing Preferences Panel -->
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Your Current Preferences</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if existing_prefs %}
+                    <div class="list-group list-group-flush">
+                        {% for pref in existing_prefs %}
+                        <div class="list-group-item px-3 py-3">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-primary rounded-circle me-3" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center">
+                                    {{ pref.rank }}
+                                </span>
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold small">{{ pref.course.title }}</div>
+                                    <div class="text-muted" style="font-size:0.75rem">
+                                        {{ pref.course.code }} &bull; {{ pref.course.department.name }}
+                                    </div>
+                                </div>
+                                <span class="badge rounded-pill
+                                    {% if pref.status == 'allocated' %}bg-success
+                                    {% elif pref.status == 'waitlisted' %}bg-warning text-dark
+                                    {% elif pref.status == 'rejected' %}bg-danger
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ pref.get_status_display }}
+                                    {% if pref.waitlist_position %}#{{ pref.waitlist_position }}{% endif %}
+                                </span>
+                            </div>
+                            <div class="mt-1 text-muted" style="font-size:0.72rem;padding-left:40px">
+                                Submitted: {{ pref.timestamp|date:"d M Y, H:i" }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox" style="font-size:2.5rem"></i>
+                        <p class="mt-2">No preferences submitted yet</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Info Card -->
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h6 class="fw-bold"><i class="bi bi-info-circle me-2 text-primary"></i>How Allocation Works</h6>
+                    <ol class="small text-muted ps-3 mb-0">
+                        <li class="mb-1">Submit your ranked preferences before the deadline</li>
+                        <li class="mb-1">Allocation runs on first-cum-first-serve basis</li>
+                        <li class="mb-1">Higher ranked choice is tried first</li>
+                        <li class="mb-1">If full, you're added to the waitlist</li>
+                        <li>Waitlist promotions happen automatically</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/**
+ * Fetch seat info for a selected course and display it inline.
+ * Uses the DRF API endpoint for real-time data.
+ */
+async function updateSeatInfo(fieldId, courseId) {
+    const infoDiv = document.getElementById(`seat-info-${fieldId}`);
+    if (!courseId) { infoDiv.innerHTML = ''; return; }
+
+    try {
+        const resp = await fetch(`/api/seats/${courseId}/`, {
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        });
+        const data = await resp.json();
+
+        let html = '';
+        const pct = Math.round((data.available_seats / data.total_seats) * 100);
+        if (data.is_full) {
+            html = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>
+                    <strong>Course Full!</strong> You'll be waitlisted (${data.waitlist_count} ahead).</span>`;
+        } else {
+            const colorClass = pct > 50 ? 'success' : pct > 20 ? 'warning' : 'danger';
+            html = `<span class="text-${colorClass}">
+                    <i class="bi bi-people me-1"></i>
+                    <strong>${data.available_seats}/${data.total_seats}</strong> seats available
+                    (${data.waitlist_count} waitlisted)</span>`;
+        }
+        infoDiv.innerHTML = html;
+    } catch(e) {
+        infoDiv.innerHTML = '<span class="text-muted">Could not fetch seat info</span>';
+    }
+}
+</script>
+{% endblock %}

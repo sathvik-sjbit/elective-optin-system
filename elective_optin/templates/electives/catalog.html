@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% block title %}Course Catalog – ElectiveHub{% endblock %}
+
+{% block content %}
+<!-- Hero Banner -->
+<div class="hero-gradient text-white py-4 px-4 mb-4">
+    <div class="container-fluid">
+        <div class="row align-items-center">
+            <div class="col">
+                <h2 class="fw-bold mb-1"><i class="bi bi-grid-3x3-gap me-2"></i>Course Catalog</h2>
+                <p class="mb-0 opacity-75">Browse {{ total_count }} available elective courses</p>
+            </div>
+            <div class="col-auto">
+                <span class="badge bg-white text-primary fs-6 px-3 py-2">
+                    <i class="bi bi-collection me-1"></i>{{ total_count }} Courses
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid px-4">
+    <!-- Filter Bar -->
+    <div class="card mb-4">
+        <div class="card-body py-3">
+            <form method="get" id="filterForm">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold mb-1">
+                            <i class="bi bi-search me-1"></i>Search
+                        </label>
+                        {{ form.search }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold mb-1">
+                            <i class="bi bi-tag me-1"></i>Category
+                        </label>
+                        <select name="category" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Categories</option>
+                            <option value="professional" {% if request.GET.category == 'professional' %}selected{% endif %}>Professional Elective</option>
+                            <option value="open" {% if request.GET.category == 'open' %}selected{% endif %}>Open Elective</option>
+                            <option value="ability" {% if request.GET.category == 'ability' %}selected{% endif %}>Ability Enhancement</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold mb-1">
+                            <i class="bi bi-building me-1"></i>Department
+                        </label>
+                        <select name="department" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Departments</option>
+                            {% for dept in departments %}
+                            <option value="{{ dept.code }}" {% if request.GET.department == dept.code %}selected{% endif %}>{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-funnel me-1"></i>Filter
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Course Grid -->
+    {% if page_obj %}
+    <div class="row g-3" id="courseGrid">
+        {% for course in page_obj %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 course-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge badge-{{ course.category }} px-2 py-1 rounded-pill small">
+                            {{ course.get_category_display }}
+                        </span>
+                        <span class="text-muted small">{{ course.department.code }}</span>
+                    </div>
+                    <h6 class="fw-bold mb-1">{{ course.title }}</h6>
+                    <p class="text-muted small mb-0">{{ course.code }}</p>
+
+                    <!-- Seat Availability Bar -->
+                    <div class="my-3">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="text-muted">Seats Available</span>
+                            <span class="fw-semibold seat-text-{{ course.id }}"
+                                  data-course-id="{{ course.id }}"
+                                  id="seat-text-{{ course.id }}">
+                                {% if course.is_full %}
+                                    <span class="text-danger">Full</span>
+                                {% else %}
+                                    <span class="text-success">{{ course.available_seats }}/{{ course.total_seats }}</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="seat-bar">
+                            <div class="seat-bar-fill {% if course.is_full %}bg-danger{% elif course.available_seats < course.total_seats|divisibleby:4 %}bg-warning{% else %}bg-success{% endif %}"
+                                 id="seat-bar-{{ course.id }}"
+                                 style="width: {% widthratio course.available_seats course.total_seats 100 %}%">
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="small text-muted flex-grow-1" style="overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">
+                        {{ course.salient_features }}
+                    </p>
+
+                    <div class="mt-2 pt-2 border-top">
+                        <small class="text-muted">
+                            <i class="bi bi-briefcase me-1"></i>
+                            {{ course.job_perspective|truncatewords:10 }}
+                        </small>
+                    </div>
+
+                    {% if course.prerequisites %}
+                    <div class="mt-1">
+                        <small class="text-warning">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Prerequisites: {{ course.prerequisites|truncatewords:8 }}
+                        </small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Branch Quota Badge -->
+                    {% if course.branch_quota %}
+                    <div class="mt-2">
+                        <span class="badge bg-light text-secondary border small">
+                            <i class="bi bi-people me-1"></i>Branch quota applies
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
+                    <a href="{% url 'submit_preference' %}" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="bi bi-plus-circle me-1"></i>Add to Preferences
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+            <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page={{ num }}">{{ num }}</a>
+            </li>
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page={{ page_obj.next_page_number }}">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-search text-muted" style="font-size:4rem"></i>
+        <h4 class="mt-3 text-muted">No courses found</h4>
+        <p class="text-muted">Try adjusting your filters</p>
+        <a href="{% url 'catalog' %}" class="btn btn-primary">Clear Filters</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Real-time seat refresh every 15 seconds
+    setInterval(refreshAllSeats, 15000);
+
+    // Style search input
+    document.querySelector('[name="search"]').className = 'form-control form-control-sm';
+</script>
+{% endblock %}
